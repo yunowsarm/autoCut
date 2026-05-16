@@ -94,7 +94,8 @@ h2 {
 }
 
 textarea,
-input[type="number"] {
+input[type="number"],
+select {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -105,7 +106,8 @@ input[type="number"] {
 }
 
 textarea:focus,
-input[type="number"]:focus {
+input[type="number"]:focus,
+select:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(22, 124, 128, 0.12);
 }
@@ -117,7 +119,8 @@ textarea {
   resize: vertical;
 }
 
-input[type="number"] {
+input[type="number"],
+select {
   height: 44px;
   padding: 0 12px;
 }

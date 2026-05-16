@@ -21,13 +21,17 @@ const upload = multer({
 app.use(express.static(path.join(process.cwd(), 'public')));
 app.use('/output', express.static(path.join(process.cwd(), 'output')));
 
+const IMAGE_MOTION_MODES = new Set(['both', 'zoom', 'float', 'alternate', 'none']);
+
 function parseSettings(body) {
+  const imageMotion = String(body.imageMotion || 'both');
   return {
     charsPerSecond: Number(body.charsPerSecond) || 4,
     minSeconds: Number(body.minSeconds) || 2,
     maxSeconds: Number(body.maxSeconds) || 8,
     subtitleEnabled: body.subtitleEnabled !== 'false',
-    ttsMaxChunkChars: Number(body.ttsMaxChunkChars) || undefined
+    ttsMaxChunkChars: Number(body.ttsMaxChunkChars) || undefined,
+    imageMotion: IMAGE_MOTION_MODES.has(imageMotion) ? imageMotion : 'both'
   };
 }
 

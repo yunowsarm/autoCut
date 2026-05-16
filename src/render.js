@@ -14,6 +14,52 @@ import { createDefaultTtsProvider, generateNarration } from "./tts.js";
 
 const OUTPUT_ROOT = path.join(process.cwd(), "output");
 const WORK_ROOT = path.join(os.tmpdir(), "autocut-local");
+const VIDEO_FPS = 30;
+
+/** zoom | float | both | alternate | none */
+function resolveImageMotion(pair, settings) {
+  const mode = settings?.imageMotion || "both";
+  if (mode === "alternate") {
+    return pair.index % 2 === 0 ? "zoom" : "float";
+  }
+  return mode;
+}
+
+/** 单张静图 → 缓慢推镜 / 上下浮动（zoompan） */
+function buildImageMotionFilters(frameCount, motion) {
+  const n = Math.max(1, frameCount);
+  const W = VIDEO_WIDTH;
+  const H = VIDEO_HEIGHT;
+  const denom = Math.max(1, n - 1);
+
+  if (motion === "none") {
+    return [
+      `scale=${W}:${H}:force_original_aspect_ratio=increase`,
+      `crop=${W}:${H}`,
+    ];
+  }
+
+  const preScale = `scale='max(${W},iw)':'max(${H},ih)':force_original_aspect_ratio=increase`;
+  const zoomEnd = motion === "zoom" ? 1.1 : 1.12;
+  const zoomStep = (zoomEnd - 1) / denom;
+  const floatAmp = 60;
+  const floatPeriod = Math.max(1, n * 2.8);
+
+  let zExpr;
+  let yExpr = `ih/2-(ih/zoom/2)+${floatAmp}*sin(2*PI*on/${floatPeriod})`;
+
+  if (motion === "zoom") {
+    zExpr = `min(${zoomEnd},1+${zoomStep}*on)`;
+    yExpr = "ih/2-(ih/zoom/2)";
+  } else if (motion === "float") {
+    zExpr = "1.14";
+  } else {
+    zExpr = `min(${zoomEnd},1+${zoomStep}*on)`;
+  }
+
+  const zoompan = `zoompan=z='${zExpr}':x='iw/2-(iw/zoom/2)':y='${yExpr}':d=${n}:s=${W}x${H}:fps=${VIDEO_FPS}`;
+  return [preScale, zoompan];
+}
 
 function ffmpegEscapePath(filePath) {
   return filePath.replace(/\\/g, "/").replace(/:/g, "\\:").replace(/'/g, "\\'");
@@ -101,7 +147,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   await fs.writeFile(filePath, header + events, "utf8");
 }
 
-async function renderClip(pair, workDir, subtitleEnabled) {
+async function renderClip(pair, workDir, subtitleEnabled, settings) {
   const clipPath = path.join(
     workDir,
     `clip-${String(pair.index).padStart(4, "0")}.mp4`,
@@ -110,14 +156,14 @@ async function renderClip(pair, workDir, subtitleEnabled) {
     workDir,
     `subtitle-${String(pair.index).padStart(4, "0")}.ass`,
   );
-  const fps = 30;
+  const fps = VIDEO_FPS;
   const { frameCount, clipSeconds } =
     pair.frameCount != null
       ? { frameCount: pair.frameCount, clipSeconds: pair.duration }
       : quantizeDurationToFps(pair.duration, fps);
+  const motion = resolveImageMotion(pair, settings);
   const vf = [
-    `scale=${VIDEO_WIDTH}:${VIDEO_HEIGHT}:force_original_aspect_ratio=increase`,
-    `crop=${VIDEO_WIDTH}:${VIDEO_HEIGHT}`,
+    ...buildImageMotionFilters(frameCount, motion),
     "setsar=1",
     "format=yuv420p",
   ];
@@ -278,7 +324,12 @@ export async function renderVideo({ pairs, settings }) {
   const clipPaths = [];
   for (const pair of pairsForVideo) {
     clipPaths.push(
-      await renderClip(pair, workDir, Boolean(settings.subtitleEnabled)),
+      await renderClip(
+        pair,
+        workDir,
+        Boolean(settings.subtitleEnabled),
+        settings,
+      ),
     );
   }
 

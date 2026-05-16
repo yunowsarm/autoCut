@@ -4,6 +4,7 @@ const charsPerSecondInput = document.querySelector('#charsPerSecond');
 const minSecondsInput = document.querySelector('#minSeconds');
 const maxSecondsInput = document.querySelector('#maxSeconds');
 const subtitleEnabledInput = document.querySelector('#subtitleEnabled');
+const imageMotionInput = document.querySelector('#imageMotion');
 const segmentCount = document.querySelector('#segmentCount');
 const imageCount = document.querySelector('#imageCount');
 const durationTotal = document.querySelector('#durationTotal');
@@ -47,7 +48,8 @@ function getSettings() {
     charsPerSecond: Number(charsPerSecondInput.value) || 4,
     minSeconds: Number(minSecondsInput.value) || 2,
     maxSeconds: Number(maxSecondsInput.value) || 8,
-    subtitleEnabled: subtitleEnabledInput.checked
+    subtitleEnabled: subtitleEnabledInput.checked,
+    imageMotion: imageMotionInput?.value || 'both'
   };
 }
 
@@ -111,6 +113,7 @@ renderButton.addEventListener('click', async () => {
   formData.append('minSeconds', String(settings.minSeconds));
   formData.append('maxSeconds', String(settings.maxSeconds));
   formData.append('subtitleEnabled', String(settings.subtitleEnabled));
+  formData.append('imageMotion', settings.imageMotion);
 
   selectedImages.forEach((file) => {
     formData.append('images', file, file.webkitRelativePath || file.name);
