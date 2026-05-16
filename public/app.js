@@ -1,11 +1,17 @@
 const textInput = document.querySelector('#textInput');
 const imageInput = document.querySelector('#imageInput');
+const ttsProviderInput = document.querySelector('#ttsProvider');
+const aspectRatioInput = document.querySelector('#aspectRatio');
 const charsPerSecondInput = document.querySelector('#charsPerSecond');
 const minSecondsInput = document.querySelector('#minSeconds');
 const maxSecondsInput = document.querySelector('#maxSeconds');
 const subtitleEnabledInput = document.querySelector('#subtitleEnabled');
 const imageMotionInput = document.querySelector('#imageMotion');
 const imageCropFillInput = document.querySelector('#imageCropFill');
+const motionZoomStartInput = document.querySelector('#motionZoomStart');
+const motionZoomEndInput = document.querySelector('#motionZoomEnd');
+const motionFloatAmplitudeInput = document.querySelector('#motionFloatAmplitude');
+const motionFloatSpeedInput = document.querySelector('#motionFloatSpeed');
 const segmentCount = document.querySelector('#segmentCount');
 const imageCount = document.querySelector('#imageCount');
 const durationTotal = document.querySelector('#durationTotal');
@@ -13,9 +19,14 @@ const imageSummary = document.querySelector('#imageSummary');
 const renderButton = document.querySelector('#renderButton');
 const statusEl = document.querySelector('#status');
 const downloadLink = document.querySelector('#downloadLink');
+const progressPanel = document.querySelector('#progressPanel');
+const progressLabel = document.querySelector('#progressLabel');
+const progressPercent = document.querySelector('#progressPercent');
+const progressBar = document.querySelector('#progressBar');
 
 const supportedImages = new Set(['jpg', 'jpeg', 'png', 'webp']);
 let selectedImages = [];
+let pollTimer = null;
 
 function splitSegments(text) {
   return text
@@ -35,7 +46,7 @@ function clamp(value, min, max) {
 function naturalSort(files) {
   const collator = new Intl.Collator('zh-Hans-CN', {
     numeric: true,
-    sensitivity: 'base'
+    sensitivity: 'base',
   });
   return [...files].sort((a, b) => {
     const nameA = a.webkitRelativePath || a.name;
@@ -44,14 +55,24 @@ function naturalSort(files) {
   });
 }
 
+function numberValue(input, fallback) {
+  return Number(input?.value) || fallback;
+}
+
 function getSettings() {
   return {
-    charsPerSecond: Number(charsPerSecondInput.value) || 4,
-    minSeconds: Number(minSecondsInput.value) || 2,
-    maxSeconds: Number(maxSecondsInput.value) || 8,
+    ttsProvider: ttsProviderInput?.value || 'milora',
+    aspectRatio: aspectRatioInput?.value || '9:16',
+    charsPerSecond: numberValue(charsPerSecondInput, 4),
+    minSeconds: numberValue(minSecondsInput, 2),
+    maxSeconds: numberValue(maxSecondsInput, 8),
     subtitleEnabled: subtitleEnabledInput.checked,
     imageMotion: imageMotionInput?.value || 'both',
-    imageCropFill: imageCropFillInput?.checked !== false
+    imageCropFill: imageCropFillInput?.checked !== false,
+    motionZoomStart: numberValue(motionZoomStartInput, 1),
+    motionZoomEnd: numberValue(motionZoomEndInput, 1.12),
+    motionFloatAmplitude: numberValue(motionFloatAmplitudeInput, 88),
+    motionFloatSpeed: numberValue(motionFloatSpeedInput, 1),
   };
 }
 
@@ -81,6 +102,55 @@ function setStatus(message, isError = false) {
   statusEl.classList.toggle('error', isError);
 }
 
+function setProgress(progress, message) {
+  const value = clamp(Math.round(Number(progress) || 0), 0, 100);
+  progressPanel.hidden = false;
+  progressLabel.textContent = message || '生成中';
+  progressPercent.textContent = `${value}%`;
+  progressBar.style.width = `${value}%`;
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    clearTimeout(pollTimer);
+    pollTimer = null;
+  }
+}
+
+async function pollJob(statusUrl) {
+  const response = await fetch(statusUrl);
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw new Error(payload.error || '读取生成进度失败。');
+  }
+
+  setProgress(payload.progress, payload.message);
+  setStatus(payload.message || '正在生成视频...');
+
+  if (payload.status === 'done') {
+    const result = payload.result;
+    downloadLink.href = result.downloadUrl;
+    downloadLink.download = result.outputName;
+    downloadLink.hidden = false;
+    setProgress(100, '生成完成');
+    setStatus(`生成完成：${result.segmentCount} 段，约 ${result.totalDuration}s。`);
+    renderButton.disabled = false;
+    return;
+  }
+
+  if (payload.status === 'error') {
+    throw new Error(payload.error || '视频生成失败。');
+  }
+
+  pollTimer = setTimeout(() => {
+    pollJob(statusUrl).catch((error) => {
+      setStatus(error.message || '视频生成失败。', true);
+      renderButton.disabled = false;
+    });
+  }, 1000);
+}
+
 imageInput.addEventListener('change', () => {
   selectedImages = naturalSort(Array.from(imageInput.files || [])).filter((file) => {
     const ext = file.name.split('.').pop().toLowerCase();
@@ -89,14 +159,29 @@ imageInput.addEventListener('change', () => {
   updateStats();
 });
 
-[textInput, charsPerSecondInput, minSecondsInput, maxSecondsInput, subtitleEnabledInput].forEach((input) => {
-  input.addEventListener('input', updateStats);
-  input.addEventListener('change', updateStats);
+[
+  textInput,
+  ttsProviderInput,
+  aspectRatioInput,
+  charsPerSecondInput,
+  minSecondsInput,
+  maxSecondsInput,
+  subtitleEnabledInput,
+  imageMotionInput,
+  imageCropFillInput,
+  motionZoomStartInput,
+  motionZoomEndInput,
+  motionFloatAmplitudeInput,
+  motionFloatSpeedInput,
+].forEach((input) => {
+  input?.addEventListener('input', updateStats);
+  input?.addEventListener('change', updateStats);
 });
 
 renderButton.addEventListener('click', async () => {
   const segments = splitSegments(textInput.value);
   downloadLink.hidden = true;
+  stopPolling();
 
   if (segments.length === 0) {
     setStatus('请先输入至少一段小说文本。', true);
@@ -111,6 +196,8 @@ renderButton.addEventListener('click', async () => {
   const settings = getSettings();
   const formData = new FormData();
   formData.append('text', textInput.value);
+  formData.append('ttsProvider', settings.ttsProvider);
+  formData.append('aspectRatio', settings.aspectRatio);
   formData.append('charsPerSecond', String(settings.charsPerSecond));
   formData.append('minSeconds', String(settings.minSeconds));
   formData.append('maxSeconds', String(settings.maxSeconds));
@@ -118,18 +205,23 @@ renderButton.addEventListener('click', async () => {
   formData.append('imageMotion', settings.imageMotion);
   formData.append('imageCropFill', String(settings.imageCropFill));
   formData.append('imageFit', settings.imageCropFill ? 'cover' : 'contain');
+  formData.append('motionZoomStart', String(settings.motionZoomStart));
+  formData.append('motionZoomEnd', String(settings.motionZoomEnd));
+  formData.append('motionFloatAmplitude', String(settings.motionFloatAmplitude));
+  formData.append('motionFloatSpeed', String(settings.motionFloatSpeed));
 
   selectedImages.forEach((file) => {
     formData.append('images', file, file.webkitRelativePath || file.name);
   });
 
   renderButton.disabled = true;
-  setStatus('正在生成视频，图片较多时可能需要几分钟...');
+  setProgress(0, '上传素材');
+  setStatus('正在提交生成任务...');
 
   try {
     const response = await fetch('/api/render', {
       method: 'POST',
-      body: formData
+      body: formData,
     });
     const payload = await response.json();
 
@@ -137,13 +229,11 @@ renderButton.addEventListener('click', async () => {
       throw new Error(payload.error || '视频生成失败。');
     }
 
-    downloadLink.href = payload.downloadUrl;
-    downloadLink.download = payload.outputName;
-    downloadLink.hidden = false;
-    setStatus(`生成完成：${payload.segmentCount} 段，约 ${payload.totalDuration}s。`);
+    setProgress(1, '任务已创建');
+    setStatus('任务已创建，正在生成视频...');
+    await pollJob(payload.statusUrl);
   } catch (error) {
     setStatus(error.message || '视频生成失败。', true);
-  } finally {
     renderButton.disabled = false;
   }
 });
@@ -154,22 +244,22 @@ async function loadTtsStatus() {
     const payload = await response.json();
     if (!payload.ok) return;
 
-    const label =
-      payload.ttsProvider === 'milora'
-        ? payload.miloraConfigured
-          ? 'Milora 语音（mbAIscvip）'
-          : 'Milora 语音（未配置 API Key）'
-        : payload.ttsProvider === 'xfyun'
-          ? '讯飞语音'
-          : '无旁白';
+    if (ttsProviderInput) {
+      ttsProviderInput.value = payload.ttsProvider || 'milora';
+    }
+
+    const parts = [
+      payload.miloraConfigured ? '曼波可用' : '曼波未配置',
+      payload.xfyunConfigured ? '讯飞可用' : '讯飞未配置',
+    ];
 
     const hint = document.querySelector('#ttsStatus');
     if (hint) {
-      hint.textContent = `旁白引擎：${label}`;
-      hint.classList.toggle('error', payload.ttsProvider === 'milora' && !payload.miloraConfigured);
+      hint.textContent = `旁白引擎：${parts.join(' / ')}`;
+      hint.classList.toggle('error', !payload.miloraConfigured && !payload.xfyunConfigured);
     }
   } catch {
-    // ignore
+    // 配置状态不影响主要生成流程。
   }
 }
 

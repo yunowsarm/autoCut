@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resolveImageFit } from "../src/render.js";
+import { resolveImageFit, resolveVideoSize } from "../src/render.js";
 import {
   buildSegments,
   naturalSortFiles,
@@ -16,6 +16,21 @@ test("resolveImageFit maps crop toggle to cover or contain", () => {
   assert.equal(resolveImageFit({ imageFit: "contain" }), "contain");
   assert.equal(resolveImageFit({ imageCropFill: true }), "cover");
   assert.equal(resolveImageFit({ imageCropFill: false }), "contain");
+});
+
+test("resolveVideoSize maps supported aspect ratios", () => {
+  assert.deepEqual(resolveVideoSize({ aspectRatio: "16:9" }), {
+    width: 1920,
+    height: 1080,
+  });
+  assert.deepEqual(resolveVideoSize({ aspectRatio: "9:16" }), {
+    width: 1080,
+    height: 1920,
+  });
+  assert.deepEqual(resolveVideoSize({ aspectRatio: "bad" }), {
+    width: 1080,
+    height: 1920,
+  });
 });
 
 test("splitSegments ignores empty lines", () => {

@@ -26,27 +26,28 @@ const MILORA_PROVIDER_ALIASES = new Set([
 ]);
 
 export function resolveTtsProviderName(env = process.env) {
-  const raw = String(env.TTS_PROVIDER || 'milora').toLowerCase();
+  const rawValue = typeof env === 'string' ? env : env.TTS_PROVIDER;
+  const raw = String(rawValue || 'milora').toLowerCase();
   if (raw === 'none') return 'none';
   if (raw === 'xfyun') return 'xfyun';
   if (MILORA_PROVIDER_ALIASES.has(raw)) return 'milora';
   return raw;
 }
 
-export async function createDefaultTtsProvider() {
+export async function createTtsProvider(providerName) {
   loadEnv();
-  const providerName = resolveTtsProviderName();
+  const resolvedProviderName = resolveTtsProviderName(providerName || process.env.TTS_PROVIDER);
 
-  if (providerName === 'none') {
+  if (resolvedProviderName === 'none') {
     return new TtsProvider();
   }
 
-  if (providerName === 'xfyun') {
+  if (resolvedProviderName === 'xfyun') {
     const { XfyunLongTextTtsProvider } = await import('./xfyunTts.js');
     return new XfyunLongTextTtsProvider();
   }
 
-  if (providerName === 'milora') {
+  if (resolvedProviderName === 'milora') {
     const { MiloraTtsProvider } = await import('./mamboTts.js');
     return new MiloraTtsProvider();
   }
@@ -54,6 +55,10 @@ export async function createDefaultTtsProvider() {
   throw new Error(
     `不支持的 TTS_PROVIDER：${process.env.TTS_PROVIDER}。可选：milora、xfyun、none`,
   );
+}
+
+export async function createDefaultTtsProvider() {
+  return createTtsProvider();
 }
 
 export async function createXfyunTtsProvider() {

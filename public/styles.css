@@ -32,7 +32,7 @@ body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 340px;
   gap: 20px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .editor-pane,
@@ -44,11 +44,22 @@ body {
 }
 
 .editor-pane {
+  display: flex;
+  flex-direction: column;
   min-height: calc(100vh - 64px);
   padding: 26px;
 }
 
+.editor-pane > .field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .control-pane {
+  display: flex;
+  flex-direction: column;
   position: sticky;
   top: 24px;
   padding: 22px;
@@ -113,7 +124,8 @@ select:focus {
 }
 
 textarea {
-  min-height: 52vh;
+  flex: 1;
+  min-height: 240px;
   padding: 16px;
   line-height: 1.75;
   resize: vertical;
@@ -159,6 +171,13 @@ select {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+}
+
+.control-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 12px;
+  margin-bottom: 6px;
 }
 
 .toggle {
@@ -257,6 +276,41 @@ button:disabled {
 
 .status.error {
   color: var(--danger);
+}
+
+.progress-panel {
+  margin-top: 14px;
+}
+
+.progress-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.progress-meta strong {
+  color: var(--accent-dark);
+}
+
+.progress-track {
+  width: 100%;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e4ebf2;
+}
+
+.progress-bar {
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), #42a3a7);
+  transition: width 0.25s ease;
 }
 
 .download {

@@ -12,16 +12,24 @@
         <div class="editor-pane">
           <header>
             <p class="eyebrow">AutoCut Local</p>
-            <h1>小说分段自动成片</h1>
           </header>
 
           <label class="field">
-            <span>小说文本</span>
-            <textarea id="textInput" placeholder="每个回车段落会切入下一张图片"></textarea>
+            <span>文本</span>
+            <textarea
+              id="textInput"
+              placeholder="每个回车段落会切换到下一张图片"
+            ></textarea>
           </label>
 
           <label class="file-drop" for="imageInput">
-            <input id="imageInput" type="file" accept=".jpg,.jpeg,.png,.webp,image/*" webkitdirectory multiple />
+            <input
+              id="imageInput"
+              type="file"
+              accept=".jpg,.jpeg,.png,.webp,image/*"
+              webkitdirectory
+              multiple
+            />
             <span>选择图片文件夹</span>
             <strong id="imageSummary">尚未选择图片</strong>
           </label>
@@ -31,18 +39,62 @@
           <h2>生成设置</h2>
 
           <label class="field compact">
+            <span>旁白引擎</span>
+            <select id="ttsProvider">
+              <option value="milora">曼波配音</option>
+              <option value="xfyun">讯飞配音</option>
+              <option value="none">不生成旁白</option>
+            </select>
+          </label>
+
+          <label class="field compact">
+            <span>视频比例</span>
+            <select id="aspectRatio">
+              <option value="21:9">21:9 横版超宽</option>
+              <option value="16:9">16:9 横版</option>
+              <option value="3:2">3:2 横版</option>
+              <option value="4:3">4:3 横版</option>
+              <option value="1:1">1:1 方形</option>
+              <option value="3:4">3:4 竖版</option>
+              <option value="2:3">2:3 竖版</option>
+              <option value="9:16" selected>9:16 竖版</option>
+            </select>
+          </label>
+
+          <label class="field compact">
             <span>每秒字数</span>
-            <input id="charsPerSecond" type="number" min="1" max="20" step="0.5" value="4" />
+            <input
+              id="charsPerSecond"
+              type="number"
+              min="1"
+              max="20"
+              step="0.5"
+              value="4"
+            />
           </label>
 
           <div class="number-row">
             <label class="field compact">
               <span>最短秒数</span>
-              <input id="minSeconds" type="number" min="0.5" max="30" step="0.5" value="2" />
+              <input
+                id="minSeconds"
+                type="number"
+                min="0.5"
+                max="30"
+                step="0.5"
+                value="2"
+              />
             </label>
             <label class="field compact">
               <span>最长秒数</span>
-              <input id="maxSeconds" type="number" min="1" max="60" step="0.5" value="8" />
+              <input
+                id="maxSeconds"
+                type="number"
+                min="1"
+                max="60"
+                step="0.5"
+                value="8"
+              />
             </label>
           </div>
 
@@ -50,7 +102,7 @@
             <input id="imageCropFill" type="checkbox" checked />
             <span>裁切铺满画面</span>
           </label>
-          <p class="field-hint">关闭后完整显示图片，比例不符时上下或左右留黑边</p>
+          <p class="field-hint">关闭后完整显示图片，比例不符时会留黑边。</p>
 
           <label class="field compact">
             <span>图片动效</span>
@@ -58,11 +110,58 @@
               <option value="both" selected>推镜 + 浮动</option>
               <option value="zoom">缓慢放大</option>
               <option value="float">上下浮动</option>
-              <option value="alternate">交替（奇偶段不同）</option>
-              <option value="random">随机（每段不同）</option>
+              <option value="alternate">交替</option>
+              <option value="random">随机</option>
               <option value="none">静止</option>
             </select>
           </label>
+
+          <div class="control-group">
+            <label class="field compact">
+              <span>起始缩放</span>
+              <input
+                id="motionZoomStart"
+                type="number"
+                min="1"
+                max="1.5"
+                step="0.01"
+                value="1"
+              />
+            </label>
+            <label class="field compact">
+              <span>结束缩放</span>
+              <input
+                id="motionZoomEnd"
+                type="number"
+                min="1"
+                max="1.8"
+                step="0.01"
+                value="1.12"
+              />
+            </label>
+            <label class="field compact">
+              <span>浮动幅度</span>
+              <input
+                id="motionFloatAmplitude"
+                type="number"
+                min="0"
+                max="240"
+                step="1"
+                value="88"
+              />
+            </label>
+            <label class="field compact">
+              <span>浮动速度</span>
+              <input
+                id="motionFloatSpeed"
+                type="number"
+                min="0.2"
+                max="5"
+                step="0.1"
+                value="1"
+              />
+            </label>
+          </div>
 
           <label class="toggle">
             <input id="subtitleEnabled" type="checkbox" checked />
@@ -84,9 +183,18 @@
             </div>
           </div>
 
-          <p id="ttsStatus" class="tts-status">旁白引擎：加载中…</p>
+          <p id="ttsStatus" class="tts-status">旁白引擎：加载中...</p>
 
           <button id="renderButton" type="button">生成视频</button>
+          <div id="progressPanel" class="progress-panel" hidden>
+            <div class="progress-meta">
+              <span id="progressLabel">准备中</span>
+              <strong id="progressPercent">0%</strong>
+            </div>
+            <div class="progress-track">
+              <div id="progressBar" class="progress-bar"></div>
+            </div>
+          </div>
           <p id="status" class="status">等待输入</p>
           <a id="downloadLink" class="download" hidden>下载视频</a>
         </aside>

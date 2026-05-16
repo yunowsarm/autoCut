@@ -236,7 +236,12 @@ export class MamboTtsProvider extends TtsProvider {
       Number(process.env.TTS_MAX_CHUNK_CHARS) ||
       80;
 
-    for (const segment of segments) {
+    for (let si = 0; si < segments.length; si++) {
+      const segment = segments[si];
+      settings.onProgress?.({
+        progress: (si / Math.max(1, segments.length)) * 100,
+        message: `正在生成第 ${si + 1}/${segments.length} 段配音`,
+      });
       const segmentPath = path.join(
         workDir,
         `tts-${String(segment.index).padStart(4, '0')}.mp3`
@@ -252,6 +257,10 @@ export class MamboTtsProvider extends TtsProvider {
           audioPath: segmentPath,
           probedDuration,
           duration: probedDuration
+        });
+        settings.onProgress?.({
+          progress: ((si + 1) / Math.max(1, segments.length)) * 100,
+          message: `已生成第 ${si + 1}/${segments.length} 段配音`,
         });
         continue;
       }
@@ -289,6 +298,10 @@ export class MamboTtsProvider extends TtsProvider {
         duration: clipSeconds,
         frameCount: totalFrames,
         subtitleChunks
+      });
+      settings.onProgress?.({
+        progress: ((si + 1) / Math.max(1, segments.length)) * 100,
+        message: `已生成第 ${si + 1}/${segments.length} 段配音`,
       });
     }
 
