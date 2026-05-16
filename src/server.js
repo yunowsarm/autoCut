@@ -5,6 +5,8 @@ import multer from 'multer';
 import { loadEnv } from './env.js';
 import { buildSegments, pairSegmentsWithImages } from './media.js';
 import { renderVideo } from './render.js';
+import { resolveTtsProviderName } from './tts.js';
+import { buildMamboConfig } from './mamboTts.js';
 
 loadEnv();
 
@@ -23,6 +25,15 @@ app.use('/output', express.static(path.join(process.cwd(), 'output')));
 
 const IMAGE_MOTION_MODES = new Set(['both', 'zoom', 'float', 'alternate', 'random', 'none']);
 
+function parseImageFit(body) {
+  const fit = String(body.imageFit || '').toLowerCase();
+  if (fit === 'contain' || fit === 'cover') return fit;
+  if (body.imageCropFill === 'false' || body.imageCropFill === '0') {
+    return 'contain';
+  }
+  return 'cover';
+}
+
 function parseSettings(body) {
   const imageMotion = String(body.imageMotion || 'both');
   return {
@@ -31,13 +42,34 @@ function parseSettings(body) {
     maxSeconds: Number(body.maxSeconds) || 8,
     subtitleEnabled: body.subtitleEnabled !== 'false',
     ttsMaxChunkChars: Number(body.ttsMaxChunkChars) || undefined,
-    imageMotion: IMAGE_MOTION_MODES.has(imageMotion) ? imageMotion : 'both'
+    imageMotion: IMAGE_MOTION_MODES.has(imageMotion) ? imageMotion : 'both',
+    imageFit: parseImageFit(body),
+    imageCropFill: parseImageFit(body) === 'cover'
   };
 }
 
 async function cleanupUploads(files) {
   await Promise.allSettled(files.map((file) => fs.unlink(file.path)));
 }
+
+function statusCodeForError(error) {
+  if (Number.isInteger(error?.statusCode)) {
+    return error.statusCode;
+  }
+
+  return 400;
+}
+
+app.get('/api/config', (_req, res) => {
+  const ttsProvider = resolveTtsProviderName();
+  const miloraConfigured = Boolean(buildMamboConfig().apiKey);
+  res.json({
+    ok: true,
+    ttsProvider,
+    miloraConfigured,
+    ttsDocsUrl: 'https://api.milorapart.top/docs/75/mbAIscvip',
+  });
+});
 
 app.post('/api/render', upload.array('images'), async (req, res) => {
   const files = req.files || [];
@@ -56,7 +88,8 @@ app.post('/api/render', upload.array('images'), async (req, res) => {
       totalDuration: Number(result.totalDuration.toFixed(2))
     });
   } catch (error) {
-    res.status(400).json({
+    console.error('[render failed]', error);
+    res.status(statusCodeForError(error)).json({
       ok: false,
       error: error.message || '视频生成失败。'
     });
@@ -66,5 +99,11 @@ app.post('/api/render', upload.array('images'), async (req, res) => {
 });
 
 app.listen(PORT, () => {
+  const ttsProvider = resolveTtsProviderName();
+  const miloraReady = ttsProvider === 'milora' && Boolean(buildMamboConfig().apiKey);
   console.log(`AutoCut local server is running at http://localhost:${PORT}`);
+  console.log(`TTS provider: ${ttsProvider}${miloraReady ? ' (Milora mbAIscvip ready)' : ''}`);
+  if (ttsProvider === 'milora' && !miloraReady) {
+    console.warn('Milora TTS API key missing. Set MILORA_TTS_API_KEY in .env');
+  }
 });

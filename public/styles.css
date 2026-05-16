@@ -230,6 +230,24 @@ button:disabled {
   opacity: 0.68;
 }
 
+.field-hint {
+  margin: -4px 0 14px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.tts-status {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.tts-status.error {
+  color: var(--danger);
+}
+
 .status {
   min-height: 42px;
   margin: 14px 0;

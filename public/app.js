@@ -5,6 +5,7 @@ const minSecondsInput = document.querySelector('#minSeconds');
 const maxSecondsInput = document.querySelector('#maxSeconds');
 const subtitleEnabledInput = document.querySelector('#subtitleEnabled');
 const imageMotionInput = document.querySelector('#imageMotion');
+const imageCropFillInput = document.querySelector('#imageCropFill');
 const segmentCount = document.querySelector('#segmentCount');
 const imageCount = document.querySelector('#imageCount');
 const durationTotal = document.querySelector('#durationTotal');
@@ -49,7 +50,8 @@ function getSettings() {
     minSeconds: Number(minSecondsInput.value) || 2,
     maxSeconds: Number(maxSecondsInput.value) || 8,
     subtitleEnabled: subtitleEnabledInput.checked,
-    imageMotion: imageMotionInput?.value || 'both'
+    imageMotion: imageMotionInput?.value || 'both',
+    imageCropFill: imageCropFillInput?.checked !== false
   };
 }
 
@@ -114,6 +116,8 @@ renderButton.addEventListener('click', async () => {
   formData.append('maxSeconds', String(settings.maxSeconds));
   formData.append('subtitleEnabled', String(settings.subtitleEnabled));
   formData.append('imageMotion', settings.imageMotion);
+  formData.append('imageCropFill', String(settings.imageCropFill));
+  formData.append('imageFit', settings.imageCropFill ? 'cover' : 'contain');
 
   selectedImages.forEach((file) => {
     formData.append('images', file, file.webkitRelativePath || file.name);
@@ -144,4 +148,30 @@ renderButton.addEventListener('click', async () => {
   }
 });
 
+async function loadTtsStatus() {
+  try {
+    const response = await fetch('/api/config');
+    const payload = await response.json();
+    if (!payload.ok) return;
+
+    const label =
+      payload.ttsProvider === 'milora'
+        ? payload.miloraConfigured
+          ? 'Milora 语音（mbAIscvip）'
+          : 'Milora 语音（未配置 API Key）'
+        : payload.ttsProvider === 'xfyun'
+          ? '讯飞语音'
+          : '无旁白';
+
+    const hint = document.querySelector('#ttsStatus');
+    if (hint) {
+      hint.textContent = `旁白引擎：${label}`;
+      hint.classList.toggle('error', payload.ttsProvider === 'milora' && !payload.miloraConfigured);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+loadTtsStatus();
 updateStats();

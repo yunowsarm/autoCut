@@ -36,25 +36,52 @@ function resolveImageMotion(pair, settings) {
   return mode;
 }
 
+/** cover=裁切铺满 | contain=完整显示（留黑边） */
+export function resolveImageFit(settings) {
+  const raw = String(settings?.imageFit ?? settings?.imageCropFill ?? "cover")
+    .toLowerCase()
+    .trim();
+  if (["contain", "fit", "0", "false", "no", "letterbox"].includes(raw)) {
+    return "contain";
+  }
+  return "cover";
+}
+
+function buildCoverFilters() {
+  const W = VIDEO_WIDTH;
+  const H = VIDEO_HEIGHT;
+  return [
+    `scale=${W}:${H}:force_original_aspect_ratio=increase`,
+    `crop=${W}:${H}`,
+  ];
+}
+
+function buildContainFilters() {
+  const W = VIDEO_WIDTH;
+  const H = VIDEO_HEIGHT;
+  return [
+    `scale=${W}:${H}:force_original_aspect_ratio=decrease`,
+    `pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:black`,
+  ];
+}
+
 /** 单张静图 → 缓慢推镜 / 上下浮动（zoompan） */
-function buildImageMotionFilters(frameCount, motion) {
+function buildImageMotionFilters(frameCount, motion, imageFit = "cover") {
   const n = Math.max(1, frameCount);
   const W = VIDEO_WIDTH;
   const H = VIDEO_HEIGHT;
   const denom = Math.max(1, n - 1);
+  const isContain = imageFit === "contain";
 
   if (motion === "none") {
-    return [
-      `scale=${W}:${H}:force_original_aspect_ratio=increase`,
-      `crop=${W}:${H}`,
-    ];
+    return isContain ? buildContainFilters() : buildCoverFilters();
   }
 
-  const preScale = `scale='max(${W},iw)':'max(${H},ih)':force_original_aspect_ratio=increase`;
-  const zoomEnd = motion === "zoom" ? 1.1 : 1.12;
-  const zoomStep = (zoomEnd - 1) / denom;
-  const floatAmp = 60;
+  const floatAmp = isContain ? 48 : 88;
   const floatPeriod = Math.max(1, n * 2.8);
+  const zoomEnd = motion === "zoom" ? (isContain ? 1.06 : 1.1) : isContain ? 1.08 : 1.15;
+  const zoomStep = (zoomEnd - 1) / denom;
+  const fixedZoom = isContain ? "1.1" : "1.18";
 
   let zExpr;
   let yExpr = `ih/2-(ih/zoom/2)+${floatAmp}*sin(2*PI*on/${floatPeriod})`;
@@ -63,12 +90,20 @@ function buildImageMotionFilters(frameCount, motion) {
     zExpr = `min(${zoomEnd},1+${zoomStep}*on)`;
     yExpr = "ih/2-(ih/zoom/2)";
   } else if (motion === "float") {
-    zExpr = "1.14";
+    zExpr = fixedZoom;
   } else {
     zExpr = `min(${zoomEnd},1+${zoomStep}*on)`;
   }
 
   const zoompan = `zoompan=z='${zExpr}':x='iw/2-(iw/zoom/2)':y='${yExpr}':d=${n}:s=${W}x${H}:fps=${VIDEO_FPS}`;
+
+  if (isContain) {
+    const fitPad = buildContainFilters().join(",");
+    const headroom = `scale='max(${W},iw*1.15)':'max(${H},ih*1.15)':force_original_aspect_ratio=increase`;
+    return [fitPad, headroom, zoompan];
+  }
+
+  const preScale = `scale='max(${W},iw)':'max(${H},ih)':force_original_aspect_ratio=increase`;
   return [preScale, zoompan];
 }
 
@@ -173,8 +208,9 @@ async function renderClip(pair, workDir, subtitleEnabled, settings) {
       ? { frameCount: pair.frameCount, clipSeconds: pair.duration }
       : quantizeDurationToFps(pair.duration, fps);
   const motion = resolveImageMotion(pair, settings);
+  const imageFit = resolveImageFit(settings);
   const vf = [
-    ...buildImageMotionFilters(frameCount, motion),
+    ...buildImageMotionFilters(frameCount, motion, imageFit),
     "setsar=1",
     "format=yuv420p",
   ];

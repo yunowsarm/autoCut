@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { resolveImageFit } from "../src/render.js";
 import {
   buildSegments,
   naturalSortFiles,
@@ -9,6 +10,13 @@ import {
   wrapSubtitleLines,
   wrapSubtitleText,
 } from "../src/media.js";
+
+test("resolveImageFit maps crop toggle to cover or contain", () => {
+  assert.equal(resolveImageFit({ imageFit: "cover" }), "cover");
+  assert.equal(resolveImageFit({ imageFit: "contain" }), "contain");
+  assert.equal(resolveImageFit({ imageCropFill: true }), "cover");
+  assert.equal(resolveImageFit({ imageCropFill: false }), "contain");
+});
 
 test("splitSegments ignores empty lines", () => {
   assert.deepEqual(splitSegments("第一段\n\n  第二段  \r\n第三段"), [

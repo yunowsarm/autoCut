@@ -46,6 +46,12 @@
             </label>
           </div>
 
+          <label class="toggle">
+            <input id="imageCropFill" type="checkbox" checked />
+            <span>裁切铺满画面</span>
+          </label>
+          <p class="field-hint">关闭后完整显示图片，比例不符时上下或左右留黑边</p>
+
           <label class="field compact">
             <span>图片动效</span>
             <select id="imageMotion">
@@ -77,6 +83,8 @@
               <strong id="durationTotal">0s</strong>
             </div>
           </div>
+
+          <p id="ttsStatus" class="tts-status">旁白引擎：加载中…</p>
 
           <button id="renderButton" type="button">生成视频</button>
           <p id="status" class="status">等待输入</p>
