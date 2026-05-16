@@ -21,7 +21,7 @@ const upload = multer({
 app.use(express.static(path.join(process.cwd(), 'public')));
 app.use('/output', express.static(path.join(process.cwd(), 'output')));
 
-const IMAGE_MOTION_MODES = new Set(['both', 'zoom', 'float', 'alternate', 'none']);
+const IMAGE_MOTION_MODES = new Set(['both', 'zoom', 'float', 'alternate', 'random', 'none']);
 
 function parseSettings(body) {
   const imageMotion = String(body.imageMotion || 'both');

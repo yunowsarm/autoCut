@@ -16,11 +16,22 @@ const OUTPUT_ROOT = path.join(process.cwd(), "output");
 const WORK_ROOT = path.join(os.tmpdir(), "autocut-local");
 const VIDEO_FPS = 30;
 
-/** zoom | float | both | alternate | none */
+const RANDOM_MOTION_POOL = ["zoom", "float", "both"];
+
+/** 按段落序号稳定随机，同一项目重复导出动效一致 */
+function randomMotionForIndex(index) {
+  const slot = Math.abs((index * 9301 + 49297) % 233280);
+  return RANDOM_MOTION_POOL[slot % RANDOM_MOTION_POOL.length];
+}
+
+/** zoom | float | both | alternate | random | none */
 function resolveImageMotion(pair, settings) {
   const mode = settings?.imageMotion || "both";
   if (mode === "alternate") {
     return pair.index % 2 === 0 ? "zoom" : "float";
+  }
+  if (mode === "random") {
+    return randomMotionForIndex(pair.index);
   }
   return mode;
 }
