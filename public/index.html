@@ -12,26 +12,24 @@
         <div class="editor-pane">
           <header>
             <p class="eyebrow">AutoCut Local</p>
+            <h1>小说分段自动成片</h1>
           </header>
 
           <label class="field">
-            <span>文本</span>
-            <textarea
-              id="textInput"
-              placeholder="每个回车段落会切换到下一张图片"
-            ></textarea>
+            <span>小说文本</span>
+            <textarea id="textInput" placeholder="每个回车段落会切换到下一张图片"></textarea>
           </label>
 
           <label class="file-drop" for="imageInput">
-            <input
-              id="imageInput"
-              type="file"
-              accept=".jpg,.jpeg,.png,.webp,image/*"
-              webkitdirectory
-              multiple
-            />
+            <input id="imageInput" type="file" accept=".jpg,.jpeg,.png,.webp,image/*" webkitdirectory multiple />
             <span>选择图片文件夹</span>
             <strong id="imageSummary">尚未选择图片</strong>
+          </label>
+
+          <label class="file-drop" for="bgmInput">
+            <input id="bgmInput" type="file" accept=".mp3,.wav,.m4a,.aac,.flac,.ogg,audio/*" />
+            <span>选择背景音乐</span>
+            <strong id="bgmSummary">未选择背景音乐</strong>
           </label>
         </div>
 
@@ -45,6 +43,11 @@
               <option value="xfyun">讯飞配音</option>
               <option value="none">不生成旁白</option>
             </select>
+          </label>
+
+          <label class="field compact">
+            <span>背景音乐音量</span>
+            <input id="bgmVolume" type="number" min="0" max="1" step="0.05" value="0.18" />
           </label>
 
           <label class="field compact">
@@ -63,38 +66,17 @@
 
           <label class="field compact">
             <span>每秒字数</span>
-            <input
-              id="charsPerSecond"
-              type="number"
-              min="1"
-              max="20"
-              step="0.5"
-              value="4"
-            />
+            <input id="charsPerSecond" type="number" min="1" max="20" step="0.5" value="4" />
           </label>
 
           <div class="number-row">
             <label class="field compact">
               <span>最短秒数</span>
-              <input
-                id="minSeconds"
-                type="number"
-                min="0.5"
-                max="30"
-                step="0.5"
-                value="2"
-              />
+              <input id="minSeconds" type="number" min="0.5" max="30" step="0.5" value="2" />
             </label>
             <label class="field compact">
               <span>最长秒数</span>
-              <input
-                id="maxSeconds"
-                type="number"
-                min="1"
-                max="60"
-                step="0.5"
-                value="8"
-              />
+              <input id="maxSeconds" type="number" min="1" max="60" step="0.5" value="8" />
             </label>
           </div>
 
@@ -119,47 +101,19 @@
           <div class="control-group">
             <label class="field compact">
               <span>起始缩放</span>
-              <input
-                id="motionZoomStart"
-                type="number"
-                min="1"
-                max="1.5"
-                step="0.01"
-                value="1"
-              />
+              <input id="motionZoomStart" type="number" min="1" max="1.5" step="0.01" value="1" />
             </label>
             <label class="field compact">
               <span>结束缩放</span>
-              <input
-                id="motionZoomEnd"
-                type="number"
-                min="1"
-                max="1.8"
-                step="0.01"
-                value="1.12"
-              />
+              <input id="motionZoomEnd" type="number" min="1" max="1.8" step="0.01" value="1.12" />
             </label>
             <label class="field compact">
               <span>浮动幅度</span>
-              <input
-                id="motionFloatAmplitude"
-                type="number"
-                min="0"
-                max="240"
-                step="1"
-                value="88"
-              />
+              <input id="motionFloatAmplitude" type="number" min="0" max="240" step="1" value="88" />
             </label>
             <label class="field compact">
               <span>浮动速度</span>
-              <input
-                id="motionFloatSpeed"
-                type="number"
-                min="0.2"
-                max="5"
-                step="0.1"
-                value="1"
-              />
+              <input id="motionFloatSpeed" type="number" min="0.2" max="5" step="0.1" value="1" />
             </label>
           </div>
 

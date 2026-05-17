@@ -1,5 +1,8 @@
 const textInput = document.querySelector('#textInput');
 const imageInput = document.querySelector('#imageInput');
+const bgmInput = document.querySelector('#bgmInput');
+const bgmSummary = document.querySelector('#bgmSummary');
+const bgmVolumeInput = document.querySelector('#bgmVolume');
 const ttsProviderInput = document.querySelector('#ttsProvider');
 const aspectRatioInput = document.querySelector('#aspectRatio');
 const charsPerSecondInput = document.querySelector('#charsPerSecond');
@@ -26,6 +29,7 @@ const progressBar = document.querySelector('#progressBar');
 
 const supportedImages = new Set(['jpg', 'jpeg', 'png', 'webp']);
 let selectedImages = [];
+let selectedBgm = null;
 let pollTimer = null;
 
 function splitSegments(text) {
@@ -62,6 +66,7 @@ function numberValue(input, fallback) {
 function getSettings() {
   return {
     ttsProvider: ttsProviderInput?.value || 'milora',
+    bgmVolume: clamp(numberValue(bgmVolumeInput, 0.18), 0, 1),
     aspectRatio: aspectRatioInput?.value || '9:16',
     charsPerSecond: numberValue(charsPerSecondInput, 4),
     minSeconds: numberValue(minSecondsInput, 2),
@@ -94,6 +99,10 @@ function updateStats() {
     imageSummary.textContent = '尚未选择图片';
   } else {
     imageSummary.textContent = `已选择 ${selectedImages.length} 张图片，将按文件名顺序使用`;
+  }
+
+  if (bgmSummary) {
+    bgmSummary.textContent = selectedBgm ? `已选择：${selectedBgm.name}` : '未选择背景音乐';
   }
 }
 
@@ -159,9 +168,15 @@ imageInput.addEventListener('change', () => {
   updateStats();
 });
 
+bgmInput?.addEventListener('change', () => {
+  selectedBgm = bgmInput.files?.[0] || null;
+  updateStats();
+});
+
 [
   textInput,
   ttsProviderInput,
+  bgmVolumeInput,
   aspectRatioInput,
   charsPerSecondInput,
   minSecondsInput,
@@ -197,6 +212,7 @@ renderButton.addEventListener('click', async () => {
   const formData = new FormData();
   formData.append('text', textInput.value);
   formData.append('ttsProvider', settings.ttsProvider);
+  formData.append('bgmVolume', String(settings.bgmVolume));
   formData.append('aspectRatio', settings.aspectRatio);
   formData.append('charsPerSecond', String(settings.charsPerSecond));
   formData.append('minSeconds', String(settings.minSeconds));
@@ -213,6 +229,10 @@ renderButton.addEventListener('click', async () => {
   selectedImages.forEach((file) => {
     formData.append('images', file, file.webkitRelativePath || file.name);
   });
+
+  if (selectedBgm) {
+    formData.append('bgm', selectedBgm, selectedBgm.name);
+  }
 
   renderButton.disabled = true;
   setProgress(0, '上传素材');

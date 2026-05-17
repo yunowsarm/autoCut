@@ -344,6 +344,51 @@ async function muxAudio(videoPath, audioPath, outputPath) {
   ]);
 }
 
+async function loopBgmToDuration(inputPath, outputPath, durationSeconds, volume = 0.18) {
+  const duration = Math.max(1 / VIDEO_FPS, Number(durationSeconds) || 0);
+  const safeVolume = clampNumber(volume, 0, 1, 0.18);
+  await runFfmpeg([
+    "-y",
+    "-stream_loop",
+    "-1",
+    "-i",
+    inputPath,
+    "-t",
+    String(duration),
+    "-af",
+    `volume=${safeVolume},atrim=duration=${duration},asetpts=PTS-STARTPTS`,
+    "-ar",
+    "48000",
+    "-ac",
+    "2",
+    "-c:a",
+    "libmp3lame",
+    "-q:a",
+    "4",
+    outputPath,
+  ]);
+}
+
+async function mixAudioTracks(primaryPath, bgmPath, outputPath, durationSeconds) {
+  const duration = Math.max(1 / VIDEO_FPS, Number(durationSeconds) || 0);
+  await runFfmpeg([
+    "-y",
+    "-i",
+    primaryPath,
+    "-i",
+    bgmPath,
+    "-filter_complex",
+    `[0:a]volume=1.0,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[voice];[1:a]aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[bgm];[voice][bgm]amix=inputs=2:duration=first:dropout_transition=0,atrim=duration=${duration},asetpts=PTS-STARTPTS[a]`,
+    "-map",
+    "[a]",
+    "-c:a",
+    "libmp3lame",
+    "-q:a",
+    "4",
+    outputPath,
+  ]);
+}
+
 export async function renderVideo({ pairs, settings, onProgress }) {
   reportProgress(onProgress, 1, "准备生成任务");
   await fs.mkdir(OUTPUT_ROOT, { recursive: true });
@@ -438,6 +483,26 @@ export async function renderVideo({ pairs, settings, onProgress }) {
   const outputName = `output-${jobId}.mp4`;
   const outputPath = path.join(OUTPUT_ROOT, outputName);
   const silentVideoPath = path.join(workDir, "silent.mp4");
+  const finalDuration = pairsForVideo.reduce((sum, pair) => sum + pair.duration, 0);
+
+  if (settings.bgmPath) {
+    reportProgress(onProgress, 86, "正在处理背景音乐");
+    const bgmLoopPath = path.join(workDir, "bgm-loop.mp3");
+    await loopBgmToDuration(
+      settings.bgmPath,
+      bgmLoopPath,
+      finalDuration,
+      settings.bgmVolume,
+    );
+
+    if (muxAudioPath) {
+      const mixedPath = path.join(workDir, "narration-with-bgm.mp3");
+      await mixAudioTracks(muxAudioPath, bgmLoopPath, mixedPath, finalDuration);
+      muxAudioPath = mixedPath;
+    } else {
+      muxAudioPath = bgmLoopPath;
+    }
+  }
   reportProgress(onProgress, 88, "正在合并视频片段");
   await concatClips(clipPaths, silentVideoPath, workDir);
 
@@ -453,7 +518,7 @@ export async function renderVideo({ pairs, settings, onProgress }) {
     outputName,
     outputPath,
     downloadUrl: `/output/${outputName}`,
-    totalDuration: pairsForVideo.reduce((sum, pair) => sum + pair.duration, 0),
+    totalDuration: finalDuration,
     videoSize: resolveVideoSize(settings),
   };
 }

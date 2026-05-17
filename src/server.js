@@ -169,13 +169,23 @@ app.get('/api/config', (_req, res) => {
   });
 });
 
-app.post('/api/render', upload.array('images'), async (req, res) => {
-  const files = req.files || [];
+app.post(
+  '/api/render',
+  upload.fields([
+    { name: 'images', maxCount: 500 },
+    { name: 'bgm', maxCount: 1 },
+  ]),
+  async (req, res) => {
+  const imageFiles = req.files?.images || [];
+  const bgmFile = req.files?.bgm?.[0] || null;
+  const files = [...imageFiles, ...(bgmFile ? [bgmFile] : [])];
 
   try {
     const settings = parseSettings(req.body);
+    settings.bgmPath = bgmFile?.path || null;
+    settings.bgmVolume = clampNumber(req.body.bgmVolume, 0, 1, 0.18);
     const segments = buildSegments(req.body.text, settings);
-    const pairs = pairSegmentsWithImages(segments, files);
+    const pairs = pairSegmentsWithImages(segments, imageFiles);
     const job = createJob();
     runRenderJob(job, pairs, settings, files);
 
