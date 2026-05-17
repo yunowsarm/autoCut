@@ -107,6 +107,8 @@ function buildImageMotionFilters(frameCount, motion, imageFit = "cover", setting
   const size = resolveVideoSize(settings);
   const W = size.width;
   const H = size.height;
+  const sourceW = W * 2;
+  const sourceH = H * 2;
   const denom = Math.max(1, n - 1);
   const isContain = imageFit === "contain";
   const motionSettings = resolveMotionSettings(settings);
@@ -121,28 +123,31 @@ function buildImageMotionFilters(frameCount, motion, imageFit = "cover", setting
   const zoomEnd = Math.max(zoomStart, motionSettings.zoomEnd);
   const zoomStep = (zoomEnd - zoomStart) / denom;
   const fixedZoom = String(Math.max(zoomStart, zoomEnd));
+  const stableCenterX = "trunc((iw-iw/zoom)/4)*2";
+  const stableCenterY = "trunc((ih-ih/zoom)/4)*2";
 
   let zExpr;
-  let yExpr = `ih/2-(ih/zoom/2)+${floatAmp}*sin(2*PI*on/${floatPeriod})`;
+  let xExpr = stableCenterX;
+  let yExpr = `min(max(0,trunc((ih/2-(ih/zoom/2)+${floatAmp}*sin(2*PI*on/${floatPeriod}))/2)*2),ih-ih/zoom)`;
 
   if (motion === "zoom") {
     zExpr = `min(${zoomEnd},${zoomStart}+${zoomStep}*on)`;
-    yExpr = "ih/2-(ih/zoom/2)";
+    yExpr = stableCenterY;
   } else if (motion === "float") {
     zExpr = fixedZoom;
   } else {
     zExpr = `min(${zoomEnd},${zoomStart}+${zoomStep}*on)`;
   }
 
-  const zoompan = `zoompan=z='${zExpr}':x='iw/2-(iw/zoom/2)':y='${yExpr}':d=${n}:s=${W}x${H}:fps=${VIDEO_FPS}`;
+  const zoompan = `zoompan=z='${zExpr}':x='${xExpr}':y='${yExpr}':d=${n}:s=${W}x${H}:fps=${VIDEO_FPS}`;
 
   if (isContain) {
     const fitPad = buildContainFilters(size).join(",");
-    const headroom = `scale='max(${W},iw*1.15)':'max(${H},ih*1.15)':force_original_aspect_ratio=increase`;
+    const headroom = `scale=${sourceW}:${sourceH}`;
     return [fitPad, headroom, zoompan];
   }
 
-  const preScale = `scale='max(${W},iw)':'max(${H},ih)':force_original_aspect_ratio=increase`;
+  const preScale = `scale=${sourceW}:${sourceH}:force_original_aspect_ratio=increase`;
   return [preScale, zoompan];
 }
 
@@ -389,9 +394,9 @@ async function mixAudioTracks(primaryPath, bgmPath, outputPath, durationSeconds)
   ]);
 }
 
-export async function renderVideo({ pairs, settings, onProgress }) {
+export async function renderVideo({ pairs, settings, onProgress, outputDir = OUTPUT_ROOT }) {
   reportProgress(onProgress, 1, "准备生成任务");
-  await fs.mkdir(OUTPUT_ROOT, { recursive: true });
+  await fs.mkdir(outputDir, { recursive: true });
   await fs.mkdir(WORK_ROOT, { recursive: true });
 
   const jobId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -481,7 +486,7 @@ export async function renderVideo({ pairs, settings, onProgress }) {
   }
 
   const outputName = `output-${jobId}.mp4`;
-  const outputPath = path.join(OUTPUT_ROOT, outputName);
+  const outputPath = path.join(outputDir, outputName);
   const silentVideoPath = path.join(workDir, "silent.mp4");
   const finalDuration = pairsForVideo.reduce((sum, pair) => sum + pair.duration, 0);
 
@@ -517,7 +522,7 @@ export async function renderVideo({ pairs, settings, onProgress }) {
   return {
     outputName,
     outputPath,
-    downloadUrl: `/output/${outputName}`,
+    downloadUrl: outputDir === OUTPUT_ROOT ? `/output/${outputName}` : null,
     totalDuration: finalDuration,
     videoSize: resolveVideoSize(settings),
   };

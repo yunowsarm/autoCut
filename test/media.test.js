@@ -67,6 +67,23 @@ test("naturalSortFiles sorts numeric filenames naturally", () => {
   );
 });
 
+test("pairSegmentsWithImages accepts desktop path objects and ignores extra images", () => {
+  const segments = buildSegments("one\ntwo", {
+    charsPerSecond: 4,
+    minSeconds: 2,
+    maxSeconds: 8,
+  });
+  const pairs = pairSegmentsWithImages(segments, [
+    { path: "C:/imgs/10.png", name: "10.png" },
+    { path: "C:/imgs/2.png", name: "2.png" },
+    { path: "C:/imgs/1.png", name: "1.png" },
+  ]);
+
+  assert.equal(pairs.length, 2);
+  assert.equal(pairs[0].image.name, "1.png");
+  assert.equal(pairs[1].image.name, "2.png");
+});
+
 test("pairSegmentsWithImages fails when images are insufficient", () => {
   const segments = buildSegments("一\n二", {
     charsPerSecond: 4,

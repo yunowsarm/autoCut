@@ -318,6 +318,16 @@ button:disabled {
   background: #dff3f1;
 }
 
+.download:hover {
+  color: #ffffff;
+  background: var(--accent-dark);
+}
+
+.download:focus-visible {
+  outline: 3px solid rgba(22, 124, 128, 0.22);
+  outline-offset: 2px;
+}
+
 @media (max-width: 860px) {
   .workspace {
     grid-template-columns: 1fr;

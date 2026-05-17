@@ -1,11 +1,15 @@
 {
   "name": "autocut-local",
   "version": "1.0.0",
-  "description": "Local web tool for turning segmented novel text and ordered images into a vertical subtitle video.",
+  "description": "Local desktop and web tool for turning segmented novel text and ordered images into a narrated video.",
   "type": "module",
-  "main": "src/server.js",
+  "main": "electron/main.js",
   "scripts": {
     "start": "node src/server.js",
+    "test": "node --test",
+    "desktop": "electron electron/main.js",
+    "desktop:build": "electron-builder --win --x64",
+    "electron:install": "node scripts/install-electron.mjs",
     "setup-ffmpeg": "node scripts/ensure-ffmpeg.mjs",
     "postinstall": "node scripts/ensure-ffmpeg.mjs"
   },
@@ -14,5 +18,34 @@
     "ffmpeg-static": "^5.2.0",
     "multer": "^1.4.5-lts.1"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "electron": "^30.5.1",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "local.autocut.desktop",
+    "productName": "AutoCut Desktop",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "public/**/*",
+      "src/**/*",
+      "scripts/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": ".env.example",
+        "to": ".env.example"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    }
+  }
 }

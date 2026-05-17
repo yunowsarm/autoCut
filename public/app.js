@@ -1,3 +1,5 @@
+const desktop = window.autocutDesktop || null;
+
 const textInput = document.querySelector('#textInput');
 const imageInput = document.querySelector('#imageInput');
 const bgmInput = document.querySelector('#bgmInput');
@@ -19,17 +21,23 @@ const segmentCount = document.querySelector('#segmentCount');
 const imageCount = document.querySelector('#imageCount');
 const durationTotal = document.querySelector('#durationTotal');
 const imageSummary = document.querySelector('#imageSummary');
+const outputSummary = document.querySelector('#outputSummary');
 const renderButton = document.querySelector('#renderButton');
 const statusEl = document.querySelector('#status');
-const downloadLink = document.querySelector('#downloadLink');
 const progressPanel = document.querySelector('#progressPanel');
 const progressLabel = document.querySelector('#progressLabel');
 const progressPercent = document.querySelector('#progressPercent');
 const progressBar = document.querySelector('#progressBar');
+const selectImageFolderButton = document.querySelector('#selectImageFolderButton');
+const selectBgmButton = document.querySelector('#selectBgmButton');
+const selectOutputFolderButton = document.querySelector('#selectOutputFolderButton');
+const openOutputButton = document.querySelector('#openOutputButton');
 
 const supportedImages = new Set(['jpg', 'jpeg', 'png', 'webp']);
 let selectedImages = [];
 let selectedBgm = null;
+let selectedOutputFolder = '';
+let lastOutputPath = '';
 let pollTimer = null;
 
 function splitSegments(text) {
@@ -53,8 +61,8 @@ function naturalSort(files) {
     sensitivity: 'base',
   });
   return [...files].sort((a, b) => {
-    const nameA = a.webkitRelativePath || a.name;
-    const nameB = b.webkitRelativePath || b.name;
+    const nameA = a.webkitRelativePath || a.name || a.originalname || a.path;
+    const nameB = b.webkitRelativePath || b.name || b.originalname || b.path;
     return collator.compare(nameA, nameB);
   });
 }
@@ -74,10 +82,12 @@ function getSettings() {
     subtitleEnabled: subtitleEnabledInput.checked,
     imageMotion: imageMotionInput?.value || 'both',
     imageCropFill: imageCropFillInput?.checked !== false,
+    imageFit: imageCropFillInput?.checked !== false ? 'cover' : 'contain',
     motionZoomStart: numberValue(motionZoomStartInput, 1),
     motionZoomEnd: numberValue(motionZoomEndInput, 1.12),
     motionFloatAmplitude: numberValue(motionFloatAmplitudeInput, 88),
     motionFloatSpeed: numberValue(motionFloatSpeedInput, 1),
+    bgmPath: selectedBgm?.path || null,
   };
 }
 
@@ -98,12 +108,18 @@ function updateStats() {
   if (selectedImages.length === 0) {
     imageSummary.textContent = '尚未选择图片';
   } else {
-    imageSummary.textContent = `已选择 ${selectedImages.length} 张图片，将按文件名顺序使用`;
+    const folder = selectedImages[0]?.folderPath;
+    imageSummary.textContent = folder
+      ? `已选择 ${selectedImages.length} 张图片：${folder}`
+      : `已选择 ${selectedImages.length} 张图片，将按文件名顺序使用`;
   }
 
-  if (bgmSummary) {
-    bgmSummary.textContent = selectedBgm ? `已选择：${selectedBgm.name}` : '未选择背景音乐';
-  }
+  bgmSummary.textContent = selectedBgm ? `已选择：${selectedBgm.name}` : '未选择背景音乐';
+  outputSummary.textContent = selectedOutputFolder
+    ? `输出目录：${selectedOutputFolder}`
+    : desktop
+      ? '请选择输出目录'
+      : '网页模式默认保存到 output/';
 }
 
 function setStatus(message, isError = false) {
@@ -126,7 +142,14 @@ function stopPolling() {
   }
 }
 
-async function pollJob(statusUrl) {
+function setBusy(isBusy) {
+  renderButton.disabled = isBusy;
+  selectImageFolderButton.disabled = isBusy;
+  selectBgmButton.disabled = isBusy;
+  selectOutputFolderButton.disabled = isBusy;
+}
+
+async function pollWebJob(statusUrl) {
   const response = await fetch(statusUrl);
   const payload = await response.json();
 
@@ -139,12 +162,15 @@ async function pollJob(statusUrl) {
 
   if (payload.status === 'done') {
     const result = payload.result;
-    downloadLink.href = result.downloadUrl;
-    downloadLink.download = result.outputName;
-    downloadLink.hidden = false;
+    lastOutputPath = result.outputPath || '';
+    openOutputButton.hidden = false;
+    openOutputButton.textContent = '下载视频';
+    openOutputButton.onclick = () => {
+      window.location.href = result.downloadUrl;
+    };
     setProgress(100, '生成完成');
     setStatus(`生成完成：${result.segmentCount} 段，约 ${result.totalDuration}s。`);
-    renderButton.disabled = false;
+    setBusy(false);
     return;
   }
 
@@ -153,11 +179,138 @@ async function pollJob(statusUrl) {
   }
 
   pollTimer = setTimeout(() => {
-    pollJob(statusUrl).catch((error) => {
+    pollWebJob(statusUrl).catch((error) => {
       setStatus(error.message || '视频生成失败。', true);
-      renderButton.disabled = false;
+      setBusy(false);
     });
   }, 1000);
+}
+
+async function selectDesktopImages() {
+  if (!desktop) {
+    imageInput.click();
+    return;
+  }
+
+  const result = await desktop.selectImageFolder();
+  if (result.canceled) return;
+  selectedImages = (result.images || []).map((image) => ({
+    ...image,
+    folderPath: result.folderPath,
+  }));
+  updateStats();
+}
+
+async function selectDesktopBgm() {
+  if (!desktop) {
+    bgmInput.click();
+    return;
+  }
+
+  const result = await desktop.selectBgmFile();
+  if (result.canceled) return;
+  selectedBgm = result.file;
+  updateStats();
+}
+
+async function selectDesktopOutputFolder() {
+  if (!desktop) return;
+
+  const result = await desktop.selectOutputFolder();
+  if (result.canceled) return;
+  selectedOutputFolder = result.folderPath;
+  updateStats();
+}
+
+function validateInputs() {
+  const segments = splitSegments(textInput.value);
+
+  if (segments.length === 0) {
+    throw new Error('请先输入至少一段小说文本。');
+  }
+
+  if (selectedImages.length < segments.length) {
+    throw new Error(`图片数量不足：需要 ${segments.length} 张，当前只有 ${selectedImages.length} 张。`);
+  }
+
+  if (desktop && !selectedOutputFolder) {
+    throw new Error('请先选择输出目录。');
+  }
+
+  return segments;
+}
+
+async function startDesktopRender() {
+  const settings = getSettings();
+  const payload = {
+    text: textInput.value,
+    images: selectedImages,
+    outputDir: selectedOutputFolder,
+    settings,
+  };
+
+  setBusy(true);
+  setProgress(0, '任务已创建');
+  setStatus('正在生成视频...');
+  openOutputButton.hidden = true;
+
+  const result = await desktop.startRender(payload);
+  if (!result.ok) {
+    throw new Error(result.error || '视频生成失败。');
+  }
+
+  lastOutputPath = result.result.outputPath;
+  openOutputButton.hidden = false;
+  openOutputButton.textContent = '打开输出文件夹';
+  openOutputButton.onclick = () => desktop.openOutputFolder(lastOutputPath);
+  setProgress(100, '生成完成');
+  setStatus(`生成完成：${result.result.segmentCount} 段，约 ${result.result.totalDuration}s。`);
+}
+
+async function startWebRender() {
+  const settings = getSettings();
+  const formData = new FormData();
+  formData.append('text', textInput.value);
+  formData.append('ttsProvider', settings.ttsProvider);
+  formData.append('bgmVolume', String(settings.bgmVolume));
+  formData.append('aspectRatio', settings.aspectRatio);
+  formData.append('charsPerSecond', String(settings.charsPerSecond));
+  formData.append('minSeconds', String(settings.minSeconds));
+  formData.append('maxSeconds', String(settings.maxSeconds));
+  formData.append('subtitleEnabled', String(settings.subtitleEnabled));
+  formData.append('imageMotion', settings.imageMotion);
+  formData.append('imageCropFill', String(settings.imageCropFill));
+  formData.append('imageFit', settings.imageFit);
+  formData.append('motionZoomStart', String(settings.motionZoomStart));
+  formData.append('motionZoomEnd', String(settings.motionZoomEnd));
+  formData.append('motionFloatAmplitude', String(settings.motionFloatAmplitude));
+  formData.append('motionFloatSpeed', String(settings.motionFloatSpeed));
+
+  selectedImages.forEach((file) => {
+    formData.append('images', file, file.webkitRelativePath || file.name);
+  });
+
+  if (selectedBgm) {
+    formData.append('bgm', selectedBgm, selectedBgm.name);
+  }
+
+  setBusy(true);
+  setProgress(0, '上传素材');
+  setStatus('正在提交生成任务...');
+
+  const response = await fetch('/api/render', {
+    method: 'POST',
+    body: formData,
+  });
+  const payload = await response.json();
+
+  if (!response.ok || !payload.ok) {
+    throw new Error(payload.error || '视频生成失败。');
+  }
+
+  setProgress(1, '任务已创建');
+  setStatus('任务已创建，正在生成视频...');
+  await pollWebJob(payload.statusUrl);
 }
 
 imageInput.addEventListener('change', () => {
@@ -172,6 +325,10 @@ bgmInput?.addEventListener('change', () => {
   selectedBgm = bgmInput.files?.[0] || null;
   updateStats();
 });
+
+selectImageFolderButton.addEventListener('click', selectDesktopImages);
+selectBgmButton.addEventListener('click', selectDesktopBgm);
+selectOutputFolderButton.addEventListener('click', selectDesktopOutputFolder);
 
 [
   textInput,
@@ -194,74 +351,31 @@ bgmInput?.addEventListener('change', () => {
 });
 
 renderButton.addEventListener('click', async () => {
-  const segments = splitSegments(textInput.value);
-  downloadLink.hidden = true;
   stopPolling();
-
-  if (segments.length === 0) {
-    setStatus('请先输入至少一段小说文本。', true);
-    return;
-  }
-
-  if (selectedImages.length < segments.length) {
-    setStatus(`图片数量不足：需要 ${segments.length} 张，当前只有 ${selectedImages.length} 张。`, true);
-    return;
-  }
-
-  const settings = getSettings();
-  const formData = new FormData();
-  formData.append('text', textInput.value);
-  formData.append('ttsProvider', settings.ttsProvider);
-  formData.append('bgmVolume', String(settings.bgmVolume));
-  formData.append('aspectRatio', settings.aspectRatio);
-  formData.append('charsPerSecond', String(settings.charsPerSecond));
-  formData.append('minSeconds', String(settings.minSeconds));
-  formData.append('maxSeconds', String(settings.maxSeconds));
-  formData.append('subtitleEnabled', String(settings.subtitleEnabled));
-  formData.append('imageMotion', settings.imageMotion);
-  formData.append('imageCropFill', String(settings.imageCropFill));
-  formData.append('imageFit', settings.imageCropFill ? 'cover' : 'contain');
-  formData.append('motionZoomStart', String(settings.motionZoomStart));
-  formData.append('motionZoomEnd', String(settings.motionZoomEnd));
-  formData.append('motionFloatAmplitude', String(settings.motionFloatAmplitude));
-  formData.append('motionFloatSpeed', String(settings.motionFloatSpeed));
-
-  selectedImages.forEach((file) => {
-    formData.append('images', file, file.webkitRelativePath || file.name);
-  });
-
-  if (selectedBgm) {
-    formData.append('bgm', selectedBgm, selectedBgm.name);
-  }
-
-  renderButton.disabled = true;
-  setProgress(0, '上传素材');
-  setStatus('正在提交生成任务...');
+  openOutputButton.hidden = true;
 
   try {
-    const response = await fetch('/api/render', {
-      method: 'POST',
-      body: formData,
-    });
-    const payload = await response.json();
-
-    if (!response.ok || !payload.ok) {
-      throw new Error(payload.error || '视频生成失败。');
+    validateInputs();
+    if (desktop) {
+      await startDesktopRender();
+    } else {
+      await startWebRender();
     }
-
-    setProgress(1, '任务已创建');
-    setStatus('任务已创建，正在生成视频...');
-    await pollJob(payload.statusUrl);
   } catch (error) {
     setStatus(error.message || '视频生成失败。', true);
-    renderButton.disabled = false;
+  } finally {
+    if (!pollTimer) {
+      setBusy(false);
+    }
   }
 });
 
 async function loadTtsStatus() {
   try {
-    const response = await fetch('/api/config');
-    const payload = await response.json();
+    const payload = desktop
+      ? await desktop.getConfig()
+      : await fetch('/api/config').then((response) => response.json());
+
     if (!payload.ok) return;
 
     if (ttsProviderInput) {
@@ -269,7 +383,7 @@ async function loadTtsStatus() {
     }
 
     const parts = [
-      payload.miloraConfigured ? '曼波可用' : '曼波未配置',
+      payload.miloraConfigured ? 'Milora 可用' : 'Milora 未配置',
       payload.xfyunConfigured ? '讯飞可用' : '讯飞未配置',
     ];
 
@@ -279,8 +393,23 @@ async function loadTtsStatus() {
       hint.classList.toggle('error', !payload.miloraConfigured && !payload.xfyunConfigured);
     }
   } catch {
-    // 配置状态不影响主要生成流程。
+    const hint = document.querySelector('#ttsStatus');
+    if (hint) {
+      hint.textContent = '旁白引擎：读取配置失败';
+      hint.classList.add('error');
+    }
   }
+}
+
+if (desktop) {
+  imageInput.hidden = true;
+  bgmInput.hidden = true;
+  desktop.onRenderProgress(({ progress, message }) => {
+    setProgress(progress, message);
+    setStatus(message || '正在生成视频...');
+  });
+} else {
+  selectOutputFolderButton.disabled = true;
 }
 
 loadTtsStatus();
