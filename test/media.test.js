@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { resolveImageFit, resolveVideoSize } from "../src/render.js";
 import {
   buildSegments,
+  assignImagesToSegments,
   naturalSortFiles,
   pairSegmentsWithImages,
   splitSegments,
@@ -82,6 +83,23 @@ test("pairSegmentsWithImages accepts desktop path objects and ignores extra imag
   assert.equal(pairs.length, 2);
   assert.equal(pairs[0].image.name, "1.png");
   assert.equal(pairs[1].image.name, "2.png");
+});
+
+test("assignImagesToSegments allows blank segment images", () => {
+  const segments = buildSegments("one\ntwo\nthree", {
+    charsPerSecond: 4,
+    minSeconds: 2,
+    maxSeconds: 8,
+  });
+  const pairs = assignImagesToSegments(segments, [
+    { path: "C:/imgs/2.png", name: "2.png" },
+    { path: "C:/imgs/1.png", name: "1.png" },
+  ]);
+
+  assert.equal(pairs.length, 3);
+  assert.equal(pairs[0].image.name, "1.png");
+  assert.equal(pairs[1].image.name, "2.png");
+  assert.equal(pairs[2].image, null);
 });
 
 test("pairSegmentsWithImages fails when images are insufficient", () => {

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { loadEnv } from '../src/env.js';
-import { buildSegments, isSupportedImage, naturalSortFiles, pairSegmentsWithImages } from '../src/media.js';
+import { assignImagesToSegments, buildSegments, isSupportedImage, naturalSortFiles } from '../src/media.js';
 import { renderVideo } from '../src/render.js';
 import { resolveTtsProviderName } from '../src/tts.js';
 import { buildMamboConfig } from '../src/mamboTts.js';
@@ -24,6 +24,14 @@ function clampNumber(value, min, max, fallback) {
   const number = Number(value);
   if (!Number.isFinite(number)) return fallback;
   return Math.min(Math.max(number, min), max);
+}
+
+function imageFileFromPath(filePath, originalname = path.basename(filePath)) {
+  return {
+    path: filePath,
+    originalname,
+    name: path.basename(filePath),
+  };
 }
 
 function createWindow() {
@@ -61,16 +69,11 @@ async function listImagesInFolder(folderPath) {
       }
 
       if (!entry.isFile() || !isSupportedImage(entry.name)) continue;
-      files.push({
-        path: filePath,
-        originalname: relativePath,
-        name: entry.name,
-      });
+      files.push(imageFileFromPath(filePath, relativePath));
     }
   }
 
   await walk(folderPath);
-
   return naturalSortFiles(files);
 }
 
@@ -138,6 +141,26 @@ ipcMain.handle('dialog:select-image-folder', async () => {
   };
 });
 
+ipcMain.handle('dialog:select-image-file', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: '选择段落图片',
+    properties: ['openFile'],
+    filters: [
+      { name: '图片文件', extensions: ['jpg', 'jpeg', 'png', 'webp'] },
+      { name: '所有文件', extensions: ['*'] },
+    ],
+  });
+
+  if (result.canceled || !result.filePaths[0]) {
+    return { canceled: true, image: null };
+  }
+
+  return {
+    canceled: false,
+    image: imageFileFromPath(result.filePaths[0]),
+  };
+});
+
 ipcMain.handle('dialog:select-bgm-file', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: '选择背景音乐',
@@ -186,7 +209,12 @@ ipcMain.handle('render:start', async (event, payload = {}) => {
 
     const settings = parseSettings(payload.settings);
     const segments = buildSegments(payload.text, settings);
-    const pairs = pairSegmentsWithImages(segments, payload.images || []);
+    const pairs = Array.isArray(payload.segmentImages)
+      ? segments.map((segment, index) => ({
+          ...segment,
+          image: payload.segmentImages[index] || null,
+        }))
+      : assignImagesToSegments(segments, payload.images || []);
     const result = await renderVideo({
       pairs,
       settings,

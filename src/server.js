@@ -3,7 +3,7 @@ import path from 'node:path';
 import express from 'express';
 import multer from 'multer';
 import { loadEnv } from './env.js';
-import { buildSegments, pairSegmentsWithImages } from './media.js';
+import { assignImagesToSegments, buildSegments } from './media.js';
 import { renderVideo } from './render.js';
 import { resolveTtsProviderName } from './tts.js';
 import { buildMamboConfig } from './mamboTts.js';
@@ -185,7 +185,7 @@ app.post(
     settings.bgmPath = bgmFile?.path || null;
     settings.bgmVolume = clampNumber(req.body.bgmVolume, 0, 1, 0.18);
     const segments = buildSegments(req.body.text, settings);
-    const pairs = pairSegmentsWithImages(segments, imageFiles);
+    const pairs = assignImagesToSegments(segments, imageFiles);
     const job = createJob();
     runRenderJob(job, pairs, settings, files);
 

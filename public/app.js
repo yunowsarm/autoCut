@@ -22,6 +22,7 @@ const imageCount = document.querySelector('#imageCount');
 const durationTotal = document.querySelector('#durationTotal');
 const imageSummary = document.querySelector('#imageSummary');
 const outputSummary = document.querySelector('#outputSummary');
+const segmentList = document.querySelector('#segmentList');
 const renderButton = document.querySelector('#renderButton');
 const statusEl = document.querySelector('#status');
 const progressPanel = document.querySelector('#progressPanel');
@@ -32,12 +33,16 @@ const selectImageFolderButton = document.querySelector('#selectImageFolderButton
 const selectBgmButton = document.querySelector('#selectBgmButton');
 const selectOutputFolderButton = document.querySelector('#selectOutputFolderButton');
 const openOutputButton = document.querySelector('#openOutputButton');
+const imagePreviewModal = document.querySelector('#imagePreviewModal');
+const fullImagePreview = document.querySelector('#fullImagePreview');
+const closeImagePreviewButton = document.querySelector('#closeImagePreviewButton');
 
 const supportedImages = new Set(['jpg', 'jpeg', 'png', 'webp']);
-let selectedImages = [];
+let segmentImages = [];
+let segmentImageCleared = [];
+let importedImages = [];
 let selectedBgm = null;
 let selectedOutputFolder = '';
-let lastOutputPath = '';
 let pollTimer = null;
 
 function splitSegments(text) {
@@ -71,6 +76,29 @@ function numberValue(input, fallback) {
   return Number(input?.value) || fallback;
 }
 
+function imageName(image) {
+  return image?.name || image?.originalname || image?.path?.split(/[\\/]/).pop() || '';
+}
+
+function imagePreviewSrc(image) {
+  if (!image) return '';
+
+  if (image instanceof File) {
+    if (!image.previewUrl) {
+      image.previewUrl = URL.createObjectURL(image);
+    }
+    return image.previewUrl;
+  }
+
+  if (image.path) {
+    const normalized = image.path.replace(/\\/g, '/');
+    const withLeadingSlash = normalized.startsWith('/') ? normalized : `/${normalized}`;
+    return encodeURI(`file://${withLeadingSlash}`);
+  }
+
+  return '';
+}
+
 function getSettings() {
   return {
     ttsProvider: ttsProviderInput?.value || 'milora',
@@ -81,8 +109,8 @@ function getSettings() {
     maxSeconds: numberValue(maxSecondsInput, 8),
     subtitleEnabled: subtitleEnabledInput.checked,
     imageMotion: imageMotionInput?.value || 'both',
-    imageCropFill: imageCropFillInput?.checked !== false,
-    imageFit: imageCropFillInput?.checked !== false ? 'cover' : 'contain',
+    imageCropFill: imageCropFillInput?.checked === true,
+    imageFit: imageCropFillInput?.checked === true ? 'cover' : 'contain',
     motionZoomStart: numberValue(motionZoomStartInput, 1),
     motionZoomEnd: numberValue(motionZoomEndInput, 1.12),
     motionFloatAmplitude: numberValue(motionFloatAmplitudeInput, 88),
@@ -99,19 +127,148 @@ function estimateDuration(segments) {
   }, 0);
 }
 
+function syncSegmentImages(segments) {
+  if (segmentImages.length > segments.length) {
+    segmentImages = segmentImages.slice(0, segments.length);
+    segmentImageCleared = segmentImageCleared.slice(0, segments.length);
+  }
+
+  while (segmentImages.length < segments.length) {
+    const index = segmentImages.length;
+    segmentImages.push(importedImages[index] || null);
+    segmentImageCleared.push(false);
+  }
+
+  for (let i = 0; i < segments.length; i++) {
+    if (!segmentImages[i] && !segmentImageCleared[i] && importedImages[i]) {
+      segmentImages[i] = importedImages[i];
+    }
+  }
+}
+
+function updateTextSegment(index, value) {
+  const segments = splitSegments(textInput.value);
+  segments[index] = value.trim();
+  textInput.value = segments.filter(Boolean).join('\n');
+  const nextSegments = splitSegments(textInput.value);
+  syncSegmentImages(nextSegments);
+  segmentCount.textContent = String(nextSegments.length);
+  durationTotal.textContent = `${estimateDuration(nextSegments).toFixed(1)}s`;
+}
+
+function openImagePreview(image) {
+  const src = imagePreviewSrc(image);
+  if (!src) return;
+  fullImagePreview.src = src;
+  imagePreviewModal.hidden = false;
+}
+
+function closeImagePreview() {
+  imagePreviewModal.hidden = true;
+  fullImagePreview.removeAttribute('src');
+}
+
+function renderSegmentList(segments) {
+  segmentList.innerHTML = '';
+
+  if (segments.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'segment-empty';
+    empty.textContent = '输入文本后，这里会显示每个段落的配图状态。';
+    segmentList.append(empty);
+    return;
+  }
+
+  segments.forEach((text, index) => {
+    const item = document.createElement('article');
+    item.className = 'segment-item';
+
+    const meta = document.createElement('div');
+    meta.className = 'segment-meta';
+
+    const title = document.createElement('strong');
+    title.textContent = `第 ${index + 1} 段`;
+
+    const preview = document.createElement('textarea');
+    preview.className = 'segment-text-editor';
+    preview.value = text;
+    preview.rows = 3;
+    preview.addEventListener('input', () => {
+      updateTextSegment(index, preview.value);
+    });
+    preview.addEventListener('blur', updateStats);
+
+    meta.append(title, preview);
+
+    const imageBox = document.createElement('div');
+    imageBox.className = 'segment-image-box';
+
+    const image = segmentImages[index];
+    const imagePreview = document.createElement('div');
+    imagePreview.className = image ? 'segment-preview has-image' : 'segment-preview';
+
+    if (image) {
+      const img = document.createElement('img');
+      img.alt = `第 ${index + 1} 段配图预览`;
+      img.src = imagePreviewSrc(image);
+      imagePreview.title = '双击预览完整图片';
+      imagePreview.addEventListener('dblclick', () => openImagePreview(image));
+      imagePreview.append(img);
+    } else {
+      const placeholder = document.createElement('span');
+      placeholder.textContent = '无图';
+      imagePreview.append(placeholder);
+    }
+
+    const imageLabel = document.createElement('span');
+    imageLabel.textContent = image ? imageName(image) : '未配图，生成时显示黑底字幕';
+    imageLabel.className = image ? 'segment-image-name' : 'segment-image-empty';
+
+    const actions = document.createElement('div');
+    actions.className = 'segment-actions';
+
+    const chooseButton = document.createElement('button');
+    chooseButton.type = 'button';
+    chooseButton.className = 'mini-button';
+    chooseButton.textContent = '选择图片';
+    chooseButton.addEventListener('click', () => chooseImageForSegment(index));
+
+    const clearButton = document.createElement('button');
+    clearButton.type = 'button';
+    clearButton.className = 'mini-button subtle';
+    clearButton.textContent = '清空';
+    clearButton.disabled = !image;
+    clearButton.addEventListener('click', () => {
+      segmentImages[index] = null;
+      segmentImageCleared[index] = true;
+      updateStats();
+    });
+
+    actions.append(chooseButton, clearButton);
+    imageBox.append(imagePreview, imageLabel, actions);
+    item.append(meta, imageBox);
+    segmentList.append(item);
+  });
+}
+
 function updateStats() {
   const segments = splitSegments(textInput.value);
+  syncSegmentImages(segments);
+  const assignedCount = segmentImages.filter(Boolean).length;
+
   segmentCount.textContent = String(segments.length);
-  imageCount.textContent = String(selectedImages.length);
+  imageCount.textContent = String(assignedCount);
   durationTotal.textContent = `${estimateDuration(segments).toFixed(1)}s`;
 
-  if (selectedImages.length === 0) {
-    imageSummary.textContent = '尚未选择图片';
+  if (importedImages.length === 0) {
+    imageSummary.textContent = assignedCount > 0
+      ? `已手动配置 ${assignedCount} 段图片`
+      : '尚未导入图片';
   } else {
-    const folder = selectedImages[0]?.folderPath;
+    const folder = importedImages[0]?.folderPath;
     imageSummary.textContent = folder
-      ? `已选择 ${selectedImages.length} 张图片：${folder}`
-      : `已选择 ${selectedImages.length} 张图片，将按文件名顺序使用`;
+      ? `已从文件夹导入 ${importedImages.length} 张图片：${folder}`
+      : `已导入 ${importedImages.length} 张图片，并按顺序分配到段落`;
   }
 
   bgmSummary.textContent = selectedBgm ? `已选择：${selectedBgm.name}` : '未选择背景音乐';
@@ -120,6 +277,7 @@ function updateStats() {
     : desktop
       ? '请选择输出目录'
       : '网页模式默认保存到 output/';
+  renderSegmentList(segments);
 }
 
 function setStatus(message, isError = false) {
@@ -147,6 +305,33 @@ function setBusy(isBusy) {
   selectImageFolderButton.disabled = isBusy;
   selectBgmButton.disabled = isBusy;
   selectOutputFolderButton.disabled = isBusy;
+  segmentList.querySelectorAll('button').forEach((button) => {
+    button.disabled = isBusy || button.dataset.disabled === 'true';
+  });
+}
+
+function assignImportedImages(images) {
+  const segments = splitSegments(textInput.value);
+  syncSegmentImages(segments);
+  importedImages = images;
+  for (let i = 0; i < segments.length; i++) {
+    segmentImages[i] = images[i] || null;
+    segmentImageCleared[i] = false;
+  }
+  updateStats();
+}
+
+async function chooseImageForSegment(index) {
+  if (!desktop) {
+    setStatus('网页模式暂不支持单段选择本地图片；请导入图片文件夹后再调整顺序。', true);
+    return;
+  }
+
+  const result = await desktop.selectImageFile();
+  if (result.canceled || !result.image) return;
+  segmentImages[index] = result.image;
+  segmentImageCleared[index] = false;
+  updateStats();
 }
 
 async function pollWebJob(statusUrl) {
@@ -162,7 +347,6 @@ async function pollWebJob(statusUrl) {
 
   if (payload.status === 'done') {
     const result = payload.result;
-    lastOutputPath = result.outputPath || '';
     openOutputButton.hidden = false;
     openOutputButton.textContent = '下载视频';
     openOutputButton.onclick = () => {
@@ -186,7 +370,7 @@ async function pollWebJob(statusUrl) {
   }, 1000);
 }
 
-async function selectDesktopImages() {
+async function selectImages() {
   if (!desktop) {
     imageInput.click();
     return;
@@ -194,14 +378,14 @@ async function selectDesktopImages() {
 
   const result = await desktop.selectImageFolder();
   if (result.canceled) return;
-  selectedImages = (result.images || []).map((image) => ({
+  const images = (result.images || []).map((image) => ({
     ...image,
     folderPath: result.folderPath,
   }));
-  updateStats();
+  assignImportedImages(images);
 }
 
-async function selectDesktopBgm() {
+async function selectBgm() {
   if (!desktop) {
     bgmInput.click();
     return;
@@ -213,7 +397,7 @@ async function selectDesktopBgm() {
   updateStats();
 }
 
-async function selectDesktopOutputFolder() {
+async function selectOutputFolder() {
   if (!desktop) return;
 
   const result = await desktop.selectOutputFolder();
@@ -226,11 +410,7 @@ function validateInputs() {
   const segments = splitSegments(textInput.value);
 
   if (segments.length === 0) {
-    throw new Error('请先输入至少一段小说文本。');
-  }
-
-  if (selectedImages.length < segments.length) {
-    throw new Error(`图片数量不足：需要 ${segments.length} 张，当前只有 ${selectedImages.length} 张。`);
+    throw new Error('请先输入至少一段文本。');
   }
 
   if (desktop && !selectedOutputFolder) {
@@ -244,7 +424,7 @@ async function startDesktopRender() {
   const settings = getSettings();
   const payload = {
     text: textInput.value,
-    images: selectedImages,
+    segmentImages,
     outputDir: selectedOutputFolder,
     settings,
   };
@@ -259,10 +439,9 @@ async function startDesktopRender() {
     throw new Error(result.error || '视频生成失败。');
   }
 
-  lastOutputPath = result.result.outputPath;
   openOutputButton.hidden = false;
   openOutputButton.textContent = '打开输出文件夹';
-  openOutputButton.onclick = () => desktop.openOutputFolder(lastOutputPath);
+  openOutputButton.onclick = () => desktop.openOutputFolder(result.result.outputPath);
   setProgress(100, '生成完成');
   setStatus(`生成完成：${result.result.segmentCount} 段，约 ${result.result.totalDuration}s。`);
 }
@@ -286,8 +465,10 @@ async function startWebRender() {
   formData.append('motionFloatAmplitude', String(settings.motionFloatAmplitude));
   formData.append('motionFloatSpeed', String(settings.motionFloatSpeed));
 
-  selectedImages.forEach((file) => {
-    formData.append('images', file, file.webkitRelativePath || file.name);
+  segmentImages.forEach((file) => {
+    if (file instanceof File) {
+      formData.append('images', file, file.webkitRelativePath || file.name);
+    }
   });
 
   if (selectedBgm) {
@@ -314,11 +495,11 @@ async function startWebRender() {
 }
 
 imageInput.addEventListener('change', () => {
-  selectedImages = naturalSort(Array.from(imageInput.files || [])).filter((file) => {
+  const files = naturalSort(Array.from(imageInput.files || [])).filter((file) => {
     const ext = file.name.split('.').pop().toLowerCase();
     return supportedImages.has(ext);
   });
-  updateStats();
+  assignImportedImages(files);
 });
 
 bgmInput?.addEventListener('change', () => {
@@ -326,9 +507,20 @@ bgmInput?.addEventListener('change', () => {
   updateStats();
 });
 
-selectImageFolderButton.addEventListener('click', selectDesktopImages);
-selectBgmButton.addEventListener('click', selectDesktopBgm);
-selectOutputFolderButton.addEventListener('click', selectDesktopOutputFolder);
+selectImageFolderButton.addEventListener('click', selectImages);
+selectBgmButton.addEventListener('click', selectBgm);
+selectOutputFolderButton.addEventListener('click', selectOutputFolder);
+closeImagePreviewButton.addEventListener('click', closeImagePreview);
+imagePreviewModal.addEventListener('click', (event) => {
+  if (event.target === imagePreviewModal) {
+    closeImagePreview();
+  }
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !imagePreviewModal.hidden) {
+    closeImagePreview();
+  }
+});
 
 [
   textInput,

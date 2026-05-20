@@ -255,13 +255,16 @@ async function renderClip(pair, workDir, subtitleEnabled, settings) {
     pair.frameCount != null
       ? { frameCount: pair.frameCount, clipSeconds: pair.duration }
       : quantizeDurationToFps(pair.duration, fps);
+  const hasImage = Boolean(pair.image?.path);
   const motion = resolveImageMotion(pair, settings);
   const imageFit = resolveImageFit(settings);
-  const vf = [
-    ...buildImageMotionFilters(frameCount, motion, imageFit, settings),
-    "setsar=1",
-    "format=yuv420p",
-  ];
+  const vf = hasImage
+    ? [
+        ...buildImageMotionFilters(frameCount, motion, imageFit, settings),
+        "setsar=1",
+        "format=yuv420p",
+      ]
+    : [`scale=${resolveVideoSize(settings).width}:${resolveVideoSize(settings).height}`, "format=yuv420p"];
 
   if (subtitleEnabled) {
     await writeAssSubtitle(
@@ -274,14 +277,20 @@ async function renderClip(pair, workDir, subtitleEnabled, settings) {
     vf.push(`subtitles='${ffmpegEscapePath(assPath)}'`);
   }
 
+  const inputArgs = hasImage
+    ? ["-loop", "1", "-t", String(clipSeconds), "-i", pair.image.path]
+    : [
+        "-f",
+        "lavfi",
+        "-t",
+        String(clipSeconds),
+        "-i",
+        `color=c=black:s=${resolveVideoSize(settings).width}x${resolveVideoSize(settings).height}:r=${fps}`,
+      ];
+
   await runFfmpeg([
     "-y",
-    "-loop",
-    "1",
-    "-t",
-    String(clipSeconds),
-    "-i",
-    pair.image.path,
+    ...inputArgs,
     "-vf",
     vf.join(","),
     "-r",

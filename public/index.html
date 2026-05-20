@@ -15,55 +15,33 @@
             <h1>分段自动成片</h1>
           </header>
 
-          <label class="field">
+          <label class="field text-field">
             <span>文本</span>
-            <textarea
-              id="textInput"
-              placeholder="每个回车段落会切换到下一张图片"
-            ></textarea>
+            <textarea id="textInput" placeholder="每个回车段落会生成一个片段，可在下方为每段单独配图"></textarea>
           </label>
 
-          <label class="file-drop" for="imageInput">
-            <input
-              id="imageInput"
-              type="file"
-              accept=".jpg,.jpeg,.png,.webp,image/*"
-              webkitdirectory
-              multiple
-            />
-            <button
-              id="selectImageFolderButton"
-              class="secondary-button"
-              type="button"
-            >
-              选择图片文件夹
-            </button>
-            <strong id="imageSummary">尚未选择图片</strong>
-          </label>
+          <section class="segment-panel">
+            <div class="segment-header">
+              <div>
+                <h2>段落配图</h2>
+                <p>可批量导入图片文件夹，也可为单个段落精确指定图片；留空则该段不显示图片。</p>
+              </div>
+              <button id="selectImageFolderButton" class="secondary-button" type="button">按顺序导入图片文件夹</button>
+            </div>
+            <input id="imageInput" type="file" accept=".jpg,.jpeg,.png,.webp,image/*" webkitdirectory multiple />
+            <strong id="imageSummary" class="summary-line">尚未导入图片</strong>
+            <div id="segmentList" class="segment-list"></div>
+          </section>
 
           <label class="file-drop" for="bgmInput">
-            <input
-              id="bgmInput"
-              type="file"
-              accept=".mp3,.wav,.m4a,.aac,.flac,.ogg,audio/*"
-            />
-            <button id="selectBgmButton" class="secondary-button" type="button">
-              选择背景音乐
-            </button>
+            <input id="bgmInput" type="file" accept=".mp3,.wav,.m4a,.aac,.flac,.ogg,audio/*" />
+            <button id="selectBgmButton" class="secondary-button" type="button">选择背景音乐</button>
             <strong id="bgmSummary">未选择背景音乐</strong>
           </label>
 
           <div class="file-drop output-picker">
-            <button
-              id="selectOutputFolderButton"
-              class="secondary-button"
-              type="button"
-            >
-              选择输出目录
-            </button>
-            <strong id="outputSummary"
-              >桌面端请选择输出目录；网页模式默认保存到 output/</strong
-            >
+            <button id="selectOutputFolderButton" class="secondary-button" type="button">选择输出目录</button>
+            <strong id="outputSummary">桌面端请选择输出目录；网页模式默认保存到 output/</strong>
           </div>
         </div>
 
@@ -81,14 +59,7 @@
 
           <label class="field compact">
             <span>背景音乐音量</span>
-            <input
-              id="bgmVolume"
-              type="number"
-              min="0"
-              max="1"
-              step="0.05"
-              value="0.18"
-            />
+            <input id="bgmVolume" type="number" min="0" max="1" step="0.05" value="0.18" />
           </label>
 
           <label class="field compact">
@@ -107,38 +78,17 @@
 
           <label class="field compact">
             <span>每秒字数</span>
-            <input
-              id="charsPerSecond"
-              type="number"
-              min="1"
-              max="20"
-              step="0.5"
-              value="4"
-            />
+            <input id="charsPerSecond" type="number" min="1" max="20" step="0.5" value="4" />
           </label>
 
           <div class="number-row">
             <label class="field compact">
               <span>最短秒数</span>
-              <input
-                id="minSeconds"
-                type="number"
-                min="0.5"
-                max="30"
-                step="0.5"
-                value="2"
-              />
+              <input id="minSeconds" type="number" min="0.5" max="30" step="0.5" value="2" />
             </label>
             <label class="field compact">
               <span>最长秒数</span>
-              <input
-                id="maxSeconds"
-                type="number"
-                min="1"
-                max="60"
-                step="0.5"
-                value="8"
-              />
+              <input id="maxSeconds" type="number" min="1" max="60" step="0.5" value="8" />
             </label>
           </div>
 
@@ -163,47 +113,19 @@
           <div class="control-group">
             <label class="field compact">
               <span>起始缩放</span>
-              <input
-                id="motionZoomStart"
-                type="number"
-                min="1"
-                max="1.5"
-                step="0.01"
-                value="1"
-              />
+              <input id="motionZoomStart" type="number" min="1" max="1.5" step="0.01" value="1" />
             </label>
             <label class="field compact">
               <span>结束缩放</span>
-              <input
-                id="motionZoomEnd"
-                type="number"
-                min="1"
-                max="1.8"
-                step="0.01"
-                value="1.12"
-              />
+              <input id="motionZoomEnd" type="number" min="1" max="1.8" step="0.01" value="1.12" />
             </label>
             <label class="field compact">
               <span>浮动幅度</span>
-              <input
-                id="motionFloatAmplitude"
-                type="number"
-                min="0"
-                max="240"
-                step="1"
-                value="88"
-              />
+              <input id="motionFloatAmplitude" type="number" min="0" max="240" step="1" value="88" />
             </label>
             <label class="field compact">
               <span>浮动速度</span>
-              <input
-                id="motionFloatSpeed"
-                type="number"
-                min="0.2"
-                max="5"
-                step="0.1"
-                value="1"
-              />
+              <input id="motionFloatSpeed" type="number" min="0.2" max="5" step="0.1" value="1" />
             </label>
           </div>
 
@@ -218,7 +140,7 @@
               <strong id="segmentCount">0</strong>
             </div>
             <div>
-              <span>图片</span>
+              <span>已配图</span>
               <strong id="imageCount">0</strong>
             </div>
             <div>
@@ -240,12 +162,15 @@
             </div>
           </div>
           <p id="status" class="status">等待输入</p>
-          <button id="openOutputButton" class="download" type="button" hidden>
-            打开输出文件夹
-          </button>
+          <button id="openOutputButton" class="download" type="button" hidden>打开输出文件夹</button>
         </aside>
       </section>
     </main>
+
+    <div id="imagePreviewModal" class="image-modal" hidden>
+      <button id="closeImagePreviewButton" class="image-modal-close" type="button">关闭</button>
+      <img id="fullImagePreview" alt="完整图片预览" />
+    </div>
 
     <script src="app.js" type="module"></script>
   </body>

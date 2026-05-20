@@ -80,6 +80,21 @@ export function pairSegmentsWithImages(segments, imageFiles) {
   }));
 }
 
+export function assignImagesToSegments(segments, imageFiles = []) {
+  const images = naturalSortFiles(
+    imageFiles.filter((file) => isSupportedImage(file.originalname || file.name || file.path)),
+  );
+
+  if (segments.length === 0) {
+    throw new Error("请先输入至少一段小说文本。");
+  }
+
+  return segments.map((segment, index) => ({
+    ...segment,
+    image: images[index] || null,
+  }));
+}
+
 /** 折行后的多行字幕（不含 ASS 换行符），供逐行转义后再用 \\N 拼接 */
 export function wrapSubtitleLines(text, maxCharsPerLine = 18, maxLines = 4) {
   const chars = Array.from(
